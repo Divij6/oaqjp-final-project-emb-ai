@@ -1,32 +1,217 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
-    <script src="./static/mywebscript.js"></script>
-    <style>
-        .center-heading {
-            text-align: center;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Emotion Detector</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --border: #1e1e2e;
+      --accent-anger: #ff4d6d;
+      --accent-joy: #ffd166;
+      --accent-fear: #8b5cf6;
+      --accent-disgust: #06d6a0;
+      --accent-sadness: #4da6ff;
+      --text-primary: #f0eee8;
+      --text-secondary: #7a7a8a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text-primary);
+      font-family: 'DM Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 20% 20%, rgba(139,92,246,0.07) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 50% at 80% 80%, rgba(255,77,109,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 60% at 50% 50%, rgba(255,209,102,0.04) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .container { position: relative; z-index: 1; width: 100%; max-width: 680px; }
+    .header { text-align: center; margin-bottom: 3rem; }
+    .header-eyebrow { font-size: 0.65rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 0.75rem; }
+    .header h1 { font-family: 'Playfair Display', serif; font-size: clamp(2.2rem, 6vw, 3.5rem); font-weight: 700; line-height: 1.05; color: var(--text-primary); letter-spacing: -0.02em; }
+    .header h1 em { font-style: italic; color: var(--accent-joy); }
+    .header-sub { margin-top: 0.75rem; font-size: 0.75rem; color: var(--text-secondary); letter-spacing: 0.05em; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 2px; padding: 2rem; position: relative; overflow: hidden; }
+    .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--accent-joy), transparent); opacity: 0.4; }
+    .input-label { font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 0.75rem; display: block; }
+    textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 2px; color: var(--text-primary); font-family: 'DM Mono', monospace; font-size: 0.875rem; line-height: 1.7; padding: 1rem 1.25rem; resize: vertical; min-height: 120px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+    textarea::placeholder { color: #3a3a4a; }
+    textarea:focus { border-color: rgba(255,209,102,0.3); box-shadow: 0 0 0 3px rgba(255,209,102,0.05); }
+    .btn { margin-top: 1.25rem; width: 100%; background: var(--accent-joy); color: #0a0a0f; border: none; border-radius: 2px; font-family: 'DM Mono', monospace; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; padding: 0.875rem 1.5rem; cursor: pointer; transition: opacity 0.2s, transform 0.1s; position: relative; overflow: hidden; }
+    .btn:hover { opacity: 0.88; }
+    .btn:active { transform: scale(0.99); }
+    .btn.loading { pointer-events: none; opacity: 0.6; }
+    .btn-text { transition: opacity 0.2s; }
+    .btn.loading .btn-text { opacity: 0; }
+    .btn-spinner { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; }
+    .btn.loading .btn-spinner { opacity: 1; }
+    .spinner-ring { width: 16px; height: 16px; border: 2px solid rgba(10,10,15,0.3); border-top-color: #0a0a0f; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .results { margin-top: 1.5rem; display: none; }
+    .results.visible { display: block; }
+    .results-header { font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 1rem; }
+    .emotion-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.75rem; margin-bottom: 1.5rem; }
+    @media (max-width: 520px) { .emotion-grid { grid-template-columns: repeat(3, 1fr); } }
+    .emotion-tile { background: var(--bg); border: 1px solid var(--border); border-radius: 2px; padding: 0.875rem 0.5rem; text-align: center; position: relative; overflow: hidden; transition: border-color 0.3s, box-shadow 0.3s; }
+    .emotion-tile.dominant { border-color: var(--tile-color); box-shadow: 0 0 20px -4px var(--tile-color); }
+    .emotion-tile::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; background: var(--tile-color, transparent); transform: scaleX(0); transition: transform 0.4s ease; }
+    .emotion-tile.bar-visible::after { transform: scaleX(1); }
+    .tile-name { font-size: 0.6rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 0.4rem; }
+    .tile-value { font-family: 'Playfair Display', serif; font-size: 1.3rem; font-weight: 700; color: var(--tile-color, var(--text-primary)); }
+    .dominant-banner { background: var(--bg); border: 1px solid var(--border); border-radius: 2px; padding: 1.25rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .dominant-label { font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-secondary); }
+    .dominant-value { font-family: 'Playfair Display', serif; font-size: 1.4rem; font-style: italic; }
+    .error-msg { margin-top: 1rem; padding: 0.875rem 1.25rem; background: rgba(255,77,109,0.08); border: 1px solid rgba(255,77,109,0.2); border-radius: 2px; font-size: 0.75rem; color: var(--accent-anger); letter-spacing: 0.05em; display: none; }
+    .error-msg.visible { display: block; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .results.visible .emotion-tile, .results.visible .dominant-banner { animation: fadeUp 0.35s ease both; }
+    .results.visible .emotion-tile:nth-child(1) { animation-delay: 0.05s; }
+    .results.visible .emotion-tile:nth-child(2) { animation-delay: 0.10s; }
+    .results.visible .emotion-tile:nth-child(3) { animation-delay: 0.15s; }
+    .results.visible .emotion-tile:nth-child(4) { animation-delay: 0.20s; }
+    .results.visible .emotion-tile:nth-child(5) { animation-delay: 0.25s; }
+    .results.visible .dominant-banner           { animation-delay: 0.30s; }
+    .footer { margin-top: 2rem; text-align: center; font-size: 0.6rem; letter-spacing: 0.15em; text-transform: uppercase; color: #2e2e3e; }
+  </style>
 </head>
 <body>
-    <div class="card">
-        <div class="card-body">
-            <h1 class="center-heading">NLP - Emotion Detection</h1> 
-            <div style="padding: 25px 25px 25px 25px;">
-            <h2 class="mb-3">
-                <label class="form-label">Please enter the text to be analyzed</label>
-                <input type="textarea" class="form-control" id="textToAnalyze">
-            </h2>
-
-            <div style="padding: 25px 25px 25px 25px;">
-                <button onclick="RunSentimentAnalysis()" class="btn btn-secondary">Run Sentiment Analysis</button>
-            </div>
-            <div style="padding: 25px 25px 25px 25px;"></div>
-            <h2 class="mb-3">
-                <label class="form-label">Result of Emotion Detection</label>
-            </h2>
-
-            <div id="system_response" style="padding: 25px 25px 25px 25px;"></div>
-        </div>
+  <div class="container">
+    <div class="header">
+      <p class="header-eyebrow">Natural Language Processing</p>
+      <h1>Feel the <em>Words</em></h1>
+      <p class="header-sub">Emotion analysis · Five-dimensional affective model</p>
     </div>
+    <div class="card">
+      <label class="input-label" for="inputText">Enter your text</label>
+      <textarea id="inputText" placeholder="Type something — a sentence, a thought, a feeling..." rows="4"></textarea>
+      <button class="btn" id="analyzeBtn" onclick="analyzeEmotion()">
+        <span class="btn-text">Analyse Emotions</span>
+        <span class="btn-spinner"><span class="spinner-ring"></span></span>
+      </button>
+      <p class="error-msg" id="errorMsg">Invalid text! Please try again.</p>
+      <div class="results" id="results">
+        <p class="results-header">Detected Emotional Profile</p>
+        <div class="emotion-grid">
+          <div class="emotion-tile" id="tile-anger"   style="--tile-color: var(--accent-anger)">
+            <div class="tile-name">Anger</div>
+            <div class="tile-value" id="val-anger">—</div>
+          </div>
+          <div class="emotion-tile" id="tile-disgust" style="--tile-color: var(--accent-disgust)">
+            <div class="tile-name">Disgust</div>
+            <div class="tile-value" id="val-disgust">—</div>
+          </div>
+          <div class="emotion-tile" id="tile-fear"    style="--tile-color: var(--accent-fear)">
+            <div class="tile-name">Fear</div>
+            <div class="tile-value" id="val-fear">—</div>
+          </div>
+          <div class="emotion-tile" id="tile-joy"     style="--tile-color: var(--accent-joy)">
+            <div class="tile-name">Joy</div>
+            <div class="tile-value" id="val-joy">—</div>
+          </div>
+          <div class="emotion-tile" id="tile-sadness" style="--tile-color: var(--accent-sadness)">
+            <div class="tile-name">Sadness</div>
+            <div class="tile-value" id="val-sadness">—</div>
+          </div>
+        </div>
+        <div class="dominant-banner">
+          <span class="dominant-label">Dominant Emotion</span>
+          <span class="dominant-value" id="dominantVal">—</span>
+        </div>
+      </div>
+    </div>
+    <p class="footer">Powered by Watson NLP · Emotion Detection</p>
+  </div>
+
+  <script>
+    async function analyzeEmotion() {
+      var text = document.getElementById('inputText').value.trim();
+      var btn = document.getElementById('analyzeBtn');
+      var results = document.getElementById('results');
+      var errorMsg = document.getElementById('errorMsg');
+
+      if (!text) {
+        errorMsg.textContent = 'Invalid text! Please try again!.';
+        errorMsg.classList.add('visible');
+        return;
+      }
+
+      results.classList.remove('visible');
+      errorMsg.classList.remove('visible');
+      btn.classList.add('loading');
+
+      document.querySelectorAll('.emotion-tile').forEach(function(t) {
+        t.classList.remove('dominant', 'bar-visible');
+      });
+
+      fetch('/emotionDetector?textToAnalyze=' + encodeURIComponent(text))
+        .then(function(response) {
+          if (!response.ok) throw new Error('Server error: ' + response.status);
+          return response.json();
+        })
+        .then(function(data) {
+          if (data.error) {
+            errorMsg.textContent = data.error;
+            errorMsg.classList.add('visible');
+          } else {
+            renderResults(data);
+            results.classList.add('visible');
+            setTimeout(function() {
+              document.querySelectorAll('.emotion-tile').forEach(function(t) {
+                t.classList.add('bar-visible');
+              });
+            }, 50);
+          }
+        })
+        .catch(function(err) {
+          errorMsg.textContent = 'Something went wrong. Is the server running?';
+          errorMsg.classList.add('visible');
+          console.error(err);
+        })
+        .finally(function() {
+          btn.classList.remove('loading');
+        });
+    }
+
+    function renderResults(data) {
+      ['anger', 'disgust', 'fear', 'joy', 'sadness'].forEach(function(e) {
+        document.getElementById('val-' + e).textContent =
+          data[e] !== undefined ? data[e].toFixed(2) : '—';
+      });
+
+      var dom = data.dominant_emotion ? data.dominant_emotion.toLowerCase() : null;
+      var domVal = document.getElementById('dominantVal');
+      domVal.textContent = dom ? dom.charAt(0).toUpperCase() + dom.slice(1) : '—';
+      domVal.style.color = dom ? 'var(--accent-' + dom + ')' : 'var(--accent-joy)';
+
+      if (dom) {
+        var tile = document.getElementById('tile-' + dom);
+        if (tile) tile.classList.add('dominant');
+      }
+    }
+
+    document.getElementById('inputText').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        analyzeEmotion();
+      }
+    });
+  </script>
 </body>
+</html>
