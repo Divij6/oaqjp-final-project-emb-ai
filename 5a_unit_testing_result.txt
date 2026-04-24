@@ -1,2 +1,7 @@
-python3 test_emotion_detection.py
-All tests passed!
+ python3 test_emotion_detection.py
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.662s
+
+OK
+All test cases passed!
